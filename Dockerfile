@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 COPY vite*.js ./
-COPY .eslintrc.cjs ./
+#COPY .eslintrc.cjs ./
 # Install project dependencies
 RUN npm install
 
