@@ -1,0 +1,97 @@
+pipeline {
+    agent any
+    stages {
+        stage('Checkout from Git') {
+            steps {
+                script {
+                    try {
+                        git branch: 'main', url: 'https://github.com/AbedJoulany/devops-tetris.git'
+                    } catch (Exception e) {
+                        currentBuild.result = 'FAILURE'
+                        error("Failed to checkout from Git: ${e}")
+                    }
+                }
+            }
+        }
+        stage('Terraform version') {
+            steps {
+                script {
+                    try {
+                        sh 'terraform --version'
+                    } catch (Exception e) {
+                        currentBuild.result = 'FAILURE'
+                        error("Failed to get Terraform version: ${e}")
+                    }
+                }
+            }
+        }
+        stage('Terraform init') {
+            steps {
+                script {
+                    try {
+                        dir('Eks-terraform') {
+                            sh 'terraform init'
+                        }
+                    } catch (Exception e) {
+                        currentBuild.result = 'FAILURE'
+                        error("Failed to initialize Terraform: ${e}")
+                    }
+                }
+            }
+        }
+        stage('Terraform validate') {
+            steps {
+                script {
+                    try {
+                        dir('Eks-terraform') {
+                            sh 'terraform validate'
+                        }
+                    } catch (Exception e) {
+                        currentBuild.result = 'FAILURE'
+                        error("Failed to validate Terraform configuration: ${e}")
+                    }
+                }
+            }
+        }
+        stage('Terraform plan') {
+            steps {
+                script {
+                    try {
+                        dir('Eks-terraform') {
+                            sh 'terraform plan'
+                        }
+                    } catch (Exception e) {
+                        currentBuild.result = 'FAILURE'
+                        error("Failed to plan Terraform changes: ${e}")
+                    }
+                }
+            }
+        }
+        stage('Terraform apply/destroy') {
+            steps {
+                script {
+                    try {
+                        dir('Eks-terraform') {
+                            sh "terraform ${action} --auto-approve"
+                        }
+                    } catch (Exception e) {
+                        currentBuild.result = 'FAILURE'
+                        error("Failed to apply/destroy Terraform changes: ${e}")
+                    }
+                }
+            }
+        }
+    }
+    post {
+        success {
+            echo 'Pipeline succeeded!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+        always {
+            echo 'Cleaning up...'
+            // Add any cleanup steps here if needed
+        }
+    }
+}
