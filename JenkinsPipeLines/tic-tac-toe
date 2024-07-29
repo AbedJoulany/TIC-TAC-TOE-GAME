@@ -1,0 +1,83 @@
+pipeline{
+    agent any
+     
+    tools{
+        jdk 'jdk17'
+        nodejs 'node18'
+    }
+    environment {
+        GIT_REPO_NAME = "Tetris-manifest"
+        GIT_USER_NAME = "AbedJoulany"
+        SCANNER_HOME=tool 'sonar-scanner'
+
+    }
+    stages {
+        stage('clean workspace'){
+            steps{
+                cleanWs()
+            }
+        }
+        stage('Checkout from Git'){
+            steps{
+                git branch: 'main', url: 'https://github.com/AbedJoulany/TIC-TAC-TOE-GAME.git'
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    def npmInstalled = sh(script: "npm -v", returnStatus: true)
+                    if (npmInstalled != 0) {
+                        sh "npm install"
+                    } else {
+                        echo "npm is already installed"
+                    }
+                }
+            }
+        }
+        
+        stage('TRIVY FS SCAN') {
+            steps {
+                sh "trivy fs . > trivyfs.txt"
+            }
+        }
+
+
+        stage("Docker Build & Push"){
+            steps{
+                script{
+                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){
+                       sh "docker build -t tic-tac-toe-game ."
+                       sh "docker tag tic-tac-toe-game abedjoulany/tic-tac-toe-game:latest "
+                       sh "docker push abedjoulany/tic-tac-toe-game:latest "
+                    }
+                }
+            }
+        }
+        
+                
+        stage("TRIVY"){
+            steps{
+                sh "trivy image abedjoulany/tic-tac-toe-game:latest > trivyimage.txt"
+            }
+        } 
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/AbedJoulany/Tetris-manifest.git'
+            }
+        }
+        stage('Update Deployment File') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+                       NEW_IMAGE_NAME = "abedjoulany/tic-tac-toe-game:latest"
+                       sh "sed -i 's|image: .*|image: $NEW_IMAGE_NAME|' deployment.yml"
+                       sh 'git add deployment.yml'
+                       sh "git commit -m 'Update deployment image to $NEW_IMAGE_NAME'"
+                       sh "git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main"
+                    }
+                }
+            }
+        }
+    }
+}
